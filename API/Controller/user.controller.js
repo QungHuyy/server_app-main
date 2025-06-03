@@ -47,24 +47,40 @@ module.exports.detail = async (req, res) => {
 
 module.exports.post_user = async (req, res) => {
     try {
-        const user = await Users.findOne({ username: req.body.username })
-
-        if (user) {
-            res.send("User Da Ton Tai")
-        } else {
-            // Băm mật khẩu trước khi lưu vào database
-            const salt = await bcrypt.genSalt(10);
-            const hashedPassword = await bcrypt.hash(req.body.password, salt);
-            
-            // Tạo user mới với mật khẩu đã băm
-            const newUser = {
-                ...req.body,
-                password: hashedPassword
-            };
-            
-            await Users.create(newUser);
-            res.send("Thanh Cong")
+        // Kiểm tra username đã tồn tại chưa
+        const userByUsername = await Users.findOne({ username: req.body.username });
+        if (userByUsername) {
+            return res.send("User Da Ton Tai");
         }
+
+        // Kiểm tra email đã tồn tại chưa
+        if (req.body.email) {
+            const userByEmail = await Users.findOne({ email: req.body.email });
+            if (userByEmail) {
+                return res.send("Email Da Ton Tai");
+            }
+        }
+
+        // Kiểm tra số điện thoại đã tồn tại chưa
+        if (req.body.phone) {
+            const userByPhone = await Users.findOne({ phone: req.body.phone });
+            if (userByPhone) {
+                return res.send("Phone Da Ton Tai");
+            }
+        }
+
+        // Băm mật khẩu trước khi lưu vào database
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(req.body.password, salt);
+        
+        // Tạo user mới với mật khẩu đã băm
+        const newUser = {
+            ...req.body,
+            password: hashedPassword
+        };
+        
+        await Users.create(newUser);
+        res.send("Thanh Cong");
     } catch (error) {
         console.error(error);
         res.status(500).send("Lỗi server");

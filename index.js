@@ -7,9 +7,9 @@ const io = require('socket.io')(http);
 
 const cors = require("cors");
 cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'dwmsfixy5',
-  api_key: process.env.CLOUDINARY_API_KEY || '716424388887474',
-  api_secret: process.env.CLOUDINARY_API_SECRET || 'Sf05WjEVfwFWFQnN1xWsfLHh0F0'
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
 });
 // Khởi tạo paypal
 var paypal = require('paypal-rest-sdk');
@@ -37,7 +37,7 @@ const Sale = require('./API/Router/admin/sale.router')
 const CommentAdmin = require('./API/Router/admin/comment.router')
 
 const mongoose = require("mongoose");
-mongoose.connect("mongodb+srv://admin:admin@app.sj5nx.mongodb.net/?retryWrites=true&w=majority&appName=app", {
+mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
 }).then(async () => {
@@ -73,8 +73,8 @@ app.use(cors());
 // Cài đặt config cho paypal
 paypal.configure({
   'mode': 'sandbox', //sandbox or live
-  'client_id': 'AZs1BwWM6IlHg7FFjBOURgGUuObrQmEKguSVbowu4ZqOuH7n2em2NBDmzBoQOqrUsgV-CVAsylOOB5ve', // Thông số này copy bên my account paypal
-  'client_secret': 'ELcS0dYevQhG7LZrBQ-fdOpPXINVQXfKQCzh8f7uFpM2vpO_g0hz5K4rk2tg1dO5p2Hzxvsx-m2fn0QU' // Thông số này cùng vậy
+  'client_id': process.env.PAYPAL_CLIENT_ID,
+  'client_secret': process.env.PAYPAL_CLIENT_SECRET
 });
 
 app.use('/api/Product', ProductAPI)

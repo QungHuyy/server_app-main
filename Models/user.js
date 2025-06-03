@@ -3,7 +3,7 @@ var mongoose = require('mongoose');
 var schema = new mongoose.Schema(
     {
         id_permission: {
-            type: String,
+            type: mongoose.Schema.Types.ObjectId,
             ref: 'Permission'
         },
         username: String,

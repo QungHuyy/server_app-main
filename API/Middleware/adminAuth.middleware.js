@@ -13,35 +13,65 @@ module.exports.adminLogin = async (req, res, next) => {
                 // Tìm quyền Admin trong cơ sở dữ liệu
                 const adminPermission = await mongoose.model('Permission').findOne({ permission: 'Admin' });
                 
-                // Tạo token JWT
-                const token = jwt.sign(
-                    { 
-                        userId: 'admin',
-                        isEnvAdmin: true 
-                    }, 
-                    process.env.JWT_SECRET || 'gfdgfd', 
-                    { expiresIn: '1h' }
-                );
-                
-                // Trả về thông tin admin và token
-                return res.json({
-                    msg: "Đăng nhập thành công",
-                    user: {
-                        _id: 'admin',
-                        email: process.env.ADMIN_EMAIL,
-                        fullname: process.env.ADMIN_FULLNAME || 'Administrator',
-                        username: process.env.ADMIN_USERNAME || 'admin',
-                        id_permission: adminPermission ? adminPermission._id : '6087dcb5f269113b3460fce4' // ID quyền mặc định nếu không tìm thấy
-                    },
-                    jwt: token
-                });
+                if (!adminPermission) {
+                    // Nếu không tìm thấy quyền Admin, tạo mới
+                    const Permission = mongoose.model('Permission');
+                    const newAdminPermission = new Permission({ permission: 'Admin' });
+                    await newAdminPermission.save();
+                    
+                    // Tạo token JWT với quyền admin mới
+                    const token = jwt.sign(
+                        { 
+                            userId: 'admin',
+                            isEnvAdmin: true,
+                            permissionId: newAdminPermission._id
+                        }, 
+                        process.env.JWT_SECRET || 'gfdgfd', 
+                        { expiresIn: '1h' }
+                    );
+                    
+                    return res.json({
+                        msg: "Đăng nhập thành công",
+                        user: {
+                            _id: 'admin',
+                            email: process.env.ADMIN_EMAIL,
+                            fullname: process.env.ADMIN_FULLNAME || 'Administrator',
+                            username: process.env.ADMIN_USERNAME || 'admin',
+                            id_permission: newAdminPermission._id
+                        },
+                        jwt: token
+                    });
+                } else {
+                    // Sử dụng quyền Admin đã tồn tại
+                    const token = jwt.sign(
+                        { 
+                            userId: 'admin',
+                            isEnvAdmin: true,
+                            permissionId: adminPermission._id
+                        }, 
+                        process.env.JWT_SECRET || 'gfdgfd', 
+                        { expiresIn: '1h' }
+                    );
+                    
+                    return res.json({
+                        msg: "Đăng nhập thành công",
+                        user: {
+                            _id: 'admin',
+                            email: process.env.ADMIN_EMAIL,
+                            fullname: process.env.ADMIN_FULLNAME || 'Administrator',
+                            username: process.env.ADMIN_USERNAME || 'admin',
+                            id_permission: adminPermission._id
+                        },
+                        jwt: token
+                    });
+                }
             }
         }
         
         // Nếu không phải admin từ biến môi trường, chuyển tiếp đến xử lý đăng nhập thông thường
         next();
     } catch (error) {
-        console.error(error);
+        console.error('Lỗi trong adminAuth middleware:', error);
         res.status(500).json({ msg: "Lỗi server" });
     }
 };
