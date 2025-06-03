@@ -89,21 +89,54 @@ module.exports.post_user = async (req, res) => {
 
 module.exports.update_user = async (req, res) => {
     try {
-        const user = await Users.findOne({ _id: req.body._id})
+        const user = await Users.findOne({ _id: req.body._id});
         
-        user.fullname = req.body.fullname
-        user.username = req.body.username
-        
-        // Chỉ cập nhật mật khẩu nếu User nhập mật khẩu mới
-        if (req.body.password && req.body.password !== user.password) {
-            const salt = await bcrypt.genSalt(10);
-            user.password = await bcrypt.hash(req.body.password, salt);
+        if (!user) {
+            return res.status(404).send("Khong Tim Thay User");
         }
 
-        await user.save()
-        res.json("Thanh Cong")
+        // Kiểm tra email trùng lặp (nếu thay đổi email)
+        if (req.body.email && req.body.email !== user.email) {
+            const existingEmailUser = await Users.findOne({ 
+                email: req.body.email,
+                _id: { $ne: req.body._id } // Exclude current user
+            });
+            if (existingEmailUser) {
+                return res.send("Email Da Ton Tai");
+            }
+        }
+
+        // Kiểm tra phone trùng lặp (nếu thay đổi phone)
+        if (req.body.phone && req.body.phone !== user.phone) {
+            const existingPhoneUser = await Users.findOne({ 
+                phone: req.body.phone,
+                _id: { $ne: req.body._id } // Exclude current user
+            });
+            if (existingPhoneUser) {
+                return res.send("Phone Da Ton Tai");
+            }
+        }
+
+        // Cập nhật thông tin
+        const updateData = {
+            fullname: req.body.fullname || user.fullname,
+            username: user.username, // Username không thay đổi
+            email: req.body.email || user.email,
+            phone: req.body.phone || user.phone,
+            gender: req.body.gender || user.gender,
+            id_permission: req.body.id_permission || user.id_permission
+        };
+        
+        // Chỉ cập nhật mật khẩu nếu có mật khẩu mới
+        if (req.body.password && req.body.password.trim() !== '') {
+            const salt = await bcrypt.genSalt(10);
+            updateData.password = await bcrypt.hash(req.body.password, salt);
+        }
+
+        await Users.updateOne({ _id: req.body._id }, updateData);
+        res.send("Thanh Cong");
     } catch (error) {
         console.error(error);
-        res.status(500).send("Lỗi server");
+        res.status(500).send("Loi Server");
     }
 }
