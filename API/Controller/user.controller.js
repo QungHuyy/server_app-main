@@ -12,11 +12,16 @@ module.exports.index = async (req, res) => {
 module.exports.user = async (req, res) => {
 
     const id = req.params.id
+    console.log('🔍 Getting user by ID:', id);
 
-    const user = await Users.findOne({ _id: id })
-
-    res.json(user)
-
+    try {
+        const user = await Users.findOne({ _id: id })
+        console.log('👤 Found user:', user ? { _id: user._id, username: user.username, fullname: user.fullname } : 'Not found');
+        res.json(user)
+    } catch (error) {
+        console.error('❌ Error getting user:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
 }
 
 module.exports.detail = async (req, res) => {
@@ -89,30 +94,52 @@ module.exports.post_user = async (req, res) => {
 
 module.exports.update_user = async (req, res) => {
     try {
+        console.log('🔄 UPDATE_USER called with body:', req.body);
+        
+        // Kiểm tra _id có hợp lệ không
+        if (!req.body._id) {
+            console.log('❌ Missing _id in request body');
+            return res.status(400).send("Thiếu ID User");
+        }
+
+        // Kiểm tra ObjectId format
+        const mongoose = require('mongoose');
+        if (!mongoose.Types.ObjectId.isValid(req.body._id)) {
+            console.log('❌ Invalid ObjectId format:', req.body._id);
+            return res.status(400).send("ID User không hợp lệ");
+        }
+        
         const user = await Users.findOne({ _id: req.body._id});
         
         if (!user) {
+            console.log('❌ User not found with ID:', req.body._id);
             return res.status(404).send("Khong Tim Thay User");
         }
 
+        console.log('👤 Found user:', { _id: user._id, username: user.username, email: user.email, phone: user.phone });
+
         // Kiểm tra email trùng lặp (nếu thay đổi email)
         if (req.body.email && req.body.email !== user.email) {
+            console.log('📧 Checking email duplication:', req.body.email);
             const existingEmailUser = await Users.findOne({ 
                 email: req.body.email,
                 _id: { $ne: req.body._id } // Exclude current user
             });
             if (existingEmailUser) {
+                console.log('❌ Email already exists:', req.body.email);
                 return res.send("Email Da Ton Tai");
             }
         }
 
         // Kiểm tra phone trùng lặp (nếu thay đổi phone)
         if (req.body.phone && req.body.phone !== user.phone) {
+            console.log('📱 Checking phone duplication:', req.body.phone);
             const existingPhoneUser = await Users.findOne({ 
                 phone: req.body.phone,
                 _id: { $ne: req.body._id } // Exclude current user
             });
             if (existingPhoneUser) {
+                console.log('❌ Phone already exists:', req.body.phone);
                 return res.send("Phone Da Ton Tai");
             }
         }
@@ -129,14 +156,31 @@ module.exports.update_user = async (req, res) => {
         
         // Chỉ cập nhật mật khẩu nếu có mật khẩu mới
         if (req.body.password && req.body.password.trim() !== '') {
+            console.log('🔒 Updating password');
             const salt = await bcrypt.genSalt(10);
             updateData.password = await bcrypt.hash(req.body.password, salt);
         }
 
-        await Users.updateOne({ _id: req.body._id }, updateData);
+        console.log('💾 Update data:', updateData);
+        const updateResult = await Users.updateOne({ _id: req.body._id }, updateData);
+        console.log('✅ Update result:', updateResult);
+
+        // Kiểm tra xem có thực sự update được không
+        if (updateResult.matchedCount === 0) {
+            console.log('❌ No document matched for update');
+            return res.status(404).send("Khong Tim Thay User");
+        }
+
+        if (updateResult.modifiedCount === 0) {
+            console.log('⚠️ Document matched but no changes made');
+            return res.send("Khong Co Thay Doi");
+        }
+
+        console.log('✅ Update successful - matched:', updateResult.matchedCount, 'modified:', updateResult.modifiedCount);
+        
         res.send("Thanh Cong");
     } catch (error) {
-        console.error(error);
+        console.error('❌ Error in update_user:', error);
         res.status(500).send("Loi Server");
     }
 }
