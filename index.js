@@ -86,6 +86,7 @@ app.use('/api/Comment', CommentAPI)
 app.use('/api/Note', NoteAPI)
 app.use('/api/DetailOrder', Detail_OrderAPI)
 app.use('/api/Category', CategoryAPI)
+app.use('/api/Chatbot', ChatbotAPI)
 
 app.use('/api/admin/Product', ProductAdmin)
 app.use('/api/admin/Category', CategoryAdmin)
