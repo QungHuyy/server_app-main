@@ -4,12 +4,17 @@ var schema = new mongoose.Schema(
     {
         id_user: {
             type: String,
-            ref: 'Users'
+            ref: 'Users',
+            required: true
         },
         id_product: {
-            type: String.apply,
-            ref: 'Products'
+            type: String,
+            ref: 'Products',
+            required: true
         }
+    },
+    {
+        timestamps: true
     }
 );
 
