@@ -50,9 +50,29 @@ module.exports.get_order = async (req, res) => {
 
     const id_user = req.params.id
 
-    const order = await Order.find({ id_user }).populate(['id_user', 'id_note'])
+    const orders = await Order.find({ id_user }).populate(['id_user', 'id_note'])
 
-    res.json(order)
+    // Kiểm tra xem có đơn hàng nào không
+    if (!orders || orders.length === 0) {
+        return res.json([]);
+    }
+
+    console.log(`Found ${orders.length} orders for user ${id_user}`);
+    
+    // Đảm bảo trả về đơn hàng đã hủy (status = 5) trong kết quả
+    const allOrders = orders.map(order => {
+        // Nếu status là 5, đổi thành 0 để hiển thị trong tab "Đã hủy"
+        if (order.status === "5") {
+            const orderObj = order.toObject();
+            orderObj.status = "0";
+            return orderObj;
+        }
+        return order;
+    });
+
+    console.log(`Returning ${allOrders.length} orders with status mapping`);
+    
+    res.json(allOrders)
 
 }
 
