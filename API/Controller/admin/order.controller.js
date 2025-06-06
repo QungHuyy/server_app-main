@@ -137,17 +137,89 @@ module.exports.delivery = async (req, res) => {
 };
 
 module.exports.confirmDelivery = async (req, res) => {
-    await Order.updateOne({ _id: req.query.id }, { status: "4", pay: true }, function (err, res) {
-        if (err) return res.json({ msg: err });
-    });
-    res.json({ msg: "Thanh Cong" })
+    try {
+        // Lấy thông tin đơn hàng
+        const order = await Order.findOne({ _id: req.query.id });
+        
+        if (!order) {
+            return res.status(404).json({ msg: "Không tìm thấy đơn hàng" });
+        }
+        
+        console.log(`Confirming delivery for order ${req.query.id}`);
+        
+        // Cập nhật trạng thái đơn hàng thành hoàn thành và đã thanh toán
+        await Order.updateOne({ _id: req.query.id }, { status: "4", pay: true });
+        
+        // Không cần hoàn lại mã giảm giá nếu đơn hàng hoàn thành
+        // Đánh dấu mã giảm giá đã được sử dụng chính thức
+        if (order.id_coupon) {
+            console.log(`Marking coupon ${order.id_coupon} as used for order ${order._id}`);
+            await Order.updateOne({ _id: req.query.id }, { coupon_used_final: true });
+        }
+        
+        res.json({ msg: "Thanh Cong" });
+    } catch (error) {
+        console.error("Error confirming delivery:", error);
+        res.status(500).json({ msg: "Đã xảy ra lỗi khi xác nhận giao hàng" });
+    }
 }
 
 module.exports.cancelOrder = async (req, res) => {
-    await Order.updateOne({ _id: req.query.id }, { status: "5" }, function (err, res) {
-        if (err) return res.json({ msg: err });
-    });
-    res.json({ msg: "Thanh Cong" })
+    try {
+        // Lấy thông tin đơn hàng trước khi cập nhật
+        const order = await Order.findOne({ _id: req.query.id });
+        
+        if (!order) {
+            return res.status(404).json({ msg: "Không tìm thấy đơn hàng" });
+        }
+        
+        console.log(`Cancelling order ${req.query.id}, coupon: ${order.id_coupon || 'none'}`);
+        
+        // Cập nhật trạng thái đơn hàng thành hủy
+        await Order.updateOne({ _id: req.query.id }, { status: "5" });
+        
+        // Nếu đơn hàng có sử dụng mã giảm giá
+        if (order.id_coupon) {
+            try {
+                // Hoàn lại mã giảm giá trực tiếp
+                const Coupon = require('../../../Models/coupon');
+                
+                // Tìm mã giảm giá
+                const coupon = await Coupon.findOne({ _id: order.id_coupon });
+                
+                if (coupon) {
+                    console.log(`Found coupon ${coupon.code} with count ${coupon.count}`);
+                    
+                    // Tăng số lượng mã giảm giá lên 1
+                    coupon.count = parseInt(coupon.count) + 1;
+                    await coupon.save();
+                    
+                    console.log(`Updated coupon count to ${coupon.count}`);
+                    
+                    // Đánh dấu đơn hàng đã được hoàn lại mã giảm giá và xóa liên kết
+                    await Order.updateOne(
+                        { _id: req.query.id }, 
+                        { 
+                            coupon_restored: true,
+                            id_coupon: null // Xóa liên kết với mã giảm giá
+                        }
+                    );
+                    
+                    console.log(`Restored coupon ${order.id_coupon} for order ${order._id}`);
+                } else {
+                    console.log(`Coupon ${order.id_coupon} not found`);
+                }
+            } catch (couponError) {
+                console.error("Error restoring coupon:", couponError);
+                // Vẫn tiếp tục xử lý, không trả về lỗi
+            }
+        }
+        
+        res.json({ msg: "Thanh Cong" });
+    } catch (error) {
+        console.error("Error canceling order:", error);
+        res.status(500).json({ msg: "Đã xảy ra lỗi khi hủy đơn hàng" });
+    }
 }
 
 

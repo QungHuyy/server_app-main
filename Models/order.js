@@ -20,6 +20,14 @@ var schema = new mongoose.Schema(
         pay: Boolean,
         feeship: Number,
         id_coupon: String,
+        coupon_restored: {
+            type: Boolean,
+            default: false
+        },
+        coupon_used_final: {
+            type: Boolean,
+            default: false
+        },
         create_time: String
     }
 );
