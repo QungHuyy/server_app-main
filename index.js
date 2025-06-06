@@ -26,6 +26,7 @@ const CategoryAPI = require('./API/Router/category.router')
 const NoteAPI = require('./API/Router/note.router')
 const ChatbotAPI = require('./API/Router/chatbot.router')
 const FeatureAPI = require('./API/Router/feature.router.js');
+const CartAPI = require('./API/Router/cart.router.js');
 
 const ProductAdmin = require('./API/Router/admin/product.router')
 const CategoryAdmin = require('./API/Router/admin/category.router')
@@ -80,6 +81,7 @@ paypal.configure({
 app.use('/api/Product', ProductAPI)
 app.use('/api/User', UserAPI)
 app.use('/api/Feature', FeatureAPI);
+app.use('/api/Cart', CartAPI);
 
 app.use('/api/Payment', OrderAPI)
 app.use('/api/Comment', CommentAPI)
