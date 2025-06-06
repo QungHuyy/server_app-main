@@ -1,6 +1,8 @@
-
 const Products = require('../../Models/product')
 const Category = require('../../Models/category')
+const Comment = require('../../Models/comment')
+const Detail_Order = require('../../Models/detail_order')
+const Order = require('../../Models/order')
 
 
 module.exports.index = async (req, res) => {
@@ -116,3 +118,44 @@ module.exports.scoll = async (req, res) => {
     res.json(paginationProducts)
 
 }
+
+// QT: Lấy thống kê đánh giá và số lượng đã bán cho sản phẩm
+module.exports.getProductStats = async (req, res) => {
+    try {
+        const productId = req.params.id;
+        
+        // Lấy thống kê đánh giá
+        const comments = await Comment.find({ id_product: productId });
+        const averageRating = comments.length > 0 
+            ? comments.reduce((sum, comment) => sum + comment.star, 0) / comments.length 
+            : 0;
+        
+        // Lấy số lượng đã bán từ các đơn hàng đã hoàn thành (status = 4)
+        const completedOrders = await Order.find({ status: "4" });
+        
+        let totalSold = 0;
+        for (const order of completedOrders) {
+            const orderDetails = await Detail_Order.find({ 
+                id_order: order._id.toString(),
+                id_product: productId 
+            });
+            
+            for (const detail of orderDetails) {
+                totalSold += detail.count;
+            }
+        }
+        
+        res.json({
+            productId: productId,
+            averageRating: Math.round(averageRating * 10) / 10, // Làm tròn 1 chữ số
+            totalReviews: comments.length,
+            totalSold: totalSold
+        });
+        
+    } catch (error) {
+        console.error('Error getting product stats:', error);
+        res.status(500).json({ 
+            error: 'Lỗi server khi lấy thống kê sản phẩm' 
+        });
+    }
+};

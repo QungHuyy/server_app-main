@@ -8,6 +8,8 @@ router.get('/', Products.index)
 
 router.get('/category', Products.category)
 
+router.get('/stats/:id', Products.getProductStats)
+
 router.get('/:id', Products.detail)
 
 router.get('/category/gender', Products.gender)
