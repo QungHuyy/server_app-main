@@ -42,7 +42,7 @@ module.exports.check_can_review = async (req, res) => {
         if (existingComment) {
             return res.json({ 
                 canReview: false, 
-                message: "Bạn đã Rating Product này rồi" 
+                message: "Bạn đã đánh giá sản phẩm này rồi" 
             })
         }
 

@@ -408,3 +408,66 @@ module.exports.getProductStats = async (req, res) => {
         });
     }
 };
+
+// Lấy các sản phẩm tương tự
+module.exports.getSimilarProducts = async (req, res) => {
+    try {
+        const productId = req.params.id;
+        const limit = parseInt(req.query.limit) || 8;
+        
+        // Lấy thông tin sản phẩm hiện tại
+        const currentProduct = await Products.findOne({ _id: productId });
+        if (!currentProduct) {
+            return res.status(404).json({ error: 'Không tìm thấy sản phẩm' });
+        }
+
+        // Lấy các sản phẩm cùng category và gender
+        let similarProducts = await Products.find({
+            _id: { $ne: productId },
+            $or: [
+                { id_category: currentProduct.id_category, gender: currentProduct.gender },
+                { id_category: currentProduct.id_category },
+                { gender: currentProduct.gender }
+            ]
+        }).limit(limit);
+        
+        // Nếu không đủ sản phẩm, lấy thêm các sản phẩm ngẫu nhiên
+        if (similarProducts.length < 4) {
+            const remainingProducts = await Products.find({
+                _id: { $ne: productId },
+                _id: { $nin: similarProducts.map(p => p._id) }
+            }).limit(4 - similarProducts.length);
+            
+            similarProducts = [...similarProducts, ...remainingProducts];
+        }
+        
+        // Lấy thông tin khuyến mãi cho các sản phẩm
+        const sales = await Sale.find({ status: true });
+        
+        // Create a map of product IDs to their sale information
+        const salesMap = {};
+        for (const sale of sales) {
+            salesMap[sale.id_product] = {
+                promotion: sale.promotion,
+                saleId: sale._id
+            };
+        }
+        
+        // Add sale information to products
+        const productsWithSaleInfo = similarProducts.map(product => {
+            const productObj = product.toObject();
+            if (salesMap[product._id.toString()]) {
+                productObj.promotion = salesMap[product._id.toString()].promotion;
+                productObj.saleId = salesMap[product._id.toString()].saleId;
+            }
+            return productObj;
+        });
+        
+        res.json(productsWithSaleInfo);
+    } catch (error) {
+        console.error('Error getting similar products:', error);
+        res.status(500).json({ 
+            error: 'Lỗi server khi lấy sản phẩm tương tự' 
+        });
+    }
+};
