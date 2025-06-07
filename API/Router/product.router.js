@@ -10,6 +10,10 @@ router.get('/category', Products.category)
 
 router.get('/stats/:id', Products.getProductStats)
 
+router.get('/new', Products.getNewProducts)
+
+router.get('/bestseller', Products.getBestSelling)
+
 router.get('/:id', Products.detail)
 
 router.get('/category/gender', Products.gender)
