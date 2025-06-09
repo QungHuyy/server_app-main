@@ -184,3 +184,72 @@ module.exports.update_user = async (req, res) => {
         res.status(500).send("Loi Server");
     }
 }
+
+module.exports.change_password = async (req, res) => {
+    try {
+        console.log('🔒 CHANGE_PASSWORD called with userId:', req.body.userId);
+        
+        if (!req.body.userId) {
+            console.log('❌ Missing userId in request body');
+            return res.status(400).json({ success: false, message: "Thiếu ID người dùng" });
+        }
+
+        if (!req.body.oldPassword || !req.body.newPassword) {
+            console.log('❌ Missing oldPassword or newPassword in request body');
+            return res.status(400).json({ success: false, message: "Vui lòng nhập mật khẩu cũ và mật khẩu mới" });
+        }
+
+        // Kiểm tra ObjectId format
+        const mongoose = require('mongoose');
+        if (!mongoose.Types.ObjectId.isValid(req.body.userId)) {
+            console.log('❌ Invalid ObjectId format:', req.body.userId);
+            return res.status(400).json({ success: false, message: "ID người dùng không hợp lệ" });
+        }
+        
+        // Tìm user
+        const user = await Users.findOne({ _id: req.body.userId });
+        
+        if (!user) {
+            console.log('❌ User not found with ID:', req.body.userId);
+            return res.status(404).json({ success: false, message: "Không tìm thấy người dùng" });
+        }
+
+        console.log('👤 Found user:', { _id: user._id, username: user.username });
+
+        // Kiểm tra mật khẩu cũ
+        const isOldPasswordCorrect = await bcrypt.compare(req.body.oldPassword, user.password);
+        if (!isOldPasswordCorrect) {
+            console.log('❌ Old password is incorrect');
+            return res.status(400).json({ success: false, message: "Mật khẩu cũ không chính xác" });
+        }
+
+        // Băm mật khẩu mới
+        const salt = await bcrypt.genSalt(10);
+        const hashedNewPassword = await bcrypt.hash(req.body.newPassword, salt);
+
+        // Cập nhật mật khẩu mới
+        const updateResult = await Users.updateOne(
+            { _id: req.body.userId }, 
+            { password: hashedNewPassword }
+        );
+
+        console.log('✅ Password update result:', updateResult);
+
+        // Kiểm tra kết quả cập nhật
+        if (updateResult.matchedCount === 0) {
+            console.log('❌ No document matched for update');
+            return res.status(404).json({ success: false, message: "Không tìm thấy người dùng" });
+        }
+
+        if (updateResult.modifiedCount === 0) {
+            console.log('⚠️ Document matched but no changes made');
+            return res.status(400).json({ success: false, message: "Không có thay đổi, mật khẩu mới giống mật khẩu cũ" });
+        }
+
+        console.log('✅ Password changed successfully');
+        res.json({ success: true, message: "Đổi mật khẩu thành công" });
+    } catch (error) {
+        console.error('❌ Error in change_password:', error);
+        res.status(500).json({ success: false, message: "Lỗi server" });
+    }
+}
