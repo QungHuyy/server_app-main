@@ -1,18 +1,25 @@
-
 const mailer = require('../../mailer')
 const crypto = require('crypto')
 
 const Order = require('../../Models/order')
 const Detail_Order = require('../../Models/detail_order')
 const Note = require('../../Models/note')
+const Products = require('../../Models/product')
 
 // Đặt hàng
 module.exports.post_order = async (req, res) => {
-
-    const order = await Order.create(req.body)
-
-    res.json(order)
-
+    try {
+        // Tạo đơn hàng với status = 1 (Đang xử lý)
+        const order = await Order.create(req.body);
+        
+        // Không cần xử lý trừ số lượng ở đây nữa vì đã xử lý ở post_detail_order
+        // Việc trừ số lượng sản phẩm sẽ được thực hiện khi tạo từng chi tiết đơn hàng
+        
+        res.json(order);
+    } catch (error) {
+        console.error("Error creating order:", error);
+        res.status(500).json({ error: "Đã xảy ra lỗi khi tạo đơn hàng" });
+    }
 }
 
 module.exports.send_mail = async (req, res) => {

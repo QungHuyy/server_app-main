@@ -19,6 +19,10 @@ var schema = new mongoose.Schema(
             M:  Number ,
             L:  Number 
         },
+        inventory_restored: {
+            type: Boolean,
+            default: false
+        }
     }
 );
 

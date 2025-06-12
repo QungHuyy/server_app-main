@@ -101,34 +101,8 @@ module.exports.confirmOrder = async (req, res) => {
 // }
 module.exports.delivery = async (req, res) => {
   try {
-    // Cập nhật trạng thái đơn hàng
+    // Chỉ cập nhật trạng thái đơn hàng, không cần xử lý inventory
     await Order.updateOne({ _id: req.query.id }, { status: "3" });
-
-    // Lấy chi tiết đơn hàng
-    const detailOrder = await Detail_Order.findOne({ id_order: req.query.id });
-    const detailInventory = detailOrder.inventory; // ví dụ: { S: 1 }
-    const id_product = detailOrder.id_product;
-
-    // Lấy sản phẩm tương ứng
-    const product = await Products.findOne({ _id: id_product });
-    if (!product) return res.status(404).json({ msg: "Không tìm thấy sản phẩm" });
-
-    const productInventory = product.inventory; // ví dụ: { S: 1, M: 2, L: 1 }
-
-    // Chỉ cập nhật size nào có trong detailOrder.inventory
-    for (const size in detailInventory) {
-      if (productInventory[size] !== undefined) {
-        productInventory[size] -= detailInventory[size];
-        if (productInventory[size] < 0) productInventory[size] = 0; // không để số âm
-      }
-    }
-
-    // Cập nhật lại inventory
-    await Products.updateOne(
-      { _id: id_product },
-      { inventory: productInventory }
-    );
-
     res.json({ msg: "Thanh Cong" });
   } catch (err) {
     console.error(err);
@@ -173,13 +147,71 @@ module.exports.cancelOrder = async (req, res) => {
             return res.status(404).json({ msg: "Không tìm thấy đơn hàng" });
         }
         
-        console.log(`Cancelling order ${req.query.id}, coupon: ${order.id_coupon || 'none'}`);
+        console.log(`[cancelOrder] Hủy đơn hàng ${req.query.id}, trạng thái hiện tại: ${order.status}`);
+        
+        // Kiểm tra xem đơn hàng đã bị hủy chưa
+        if (order.status === "5") {
+            console.log(`[cancelOrder] Đơn hàng ${req.query.id} đã bị hủy trước đó.`);
+            return res.json({ msg: "Đơn hàng đã bị hủy trước đó" });
+        }
+        
+        // Hoàn lại số lượng sản phẩm vào inventory chỉ nếu đơn hàng đang ở trạng thái chưa hoàn thành
+        if (order.status !== "4") {
+            // Lấy tất cả chi tiết đơn hàng
+            const orderDetails = await Detail_Order.find({ id_order: req.query.id });
+            console.log(`[cancelOrder] Tìm thấy ${orderDetails.length} sản phẩm trong đơn hàng để hoàn lại số lượng`);
+            
+            for (const detail of orderDetails) {
+                // Kiểm tra nếu chi tiết đơn hàng này đã được hoàn lại số lượng rồi thì bỏ qua
+                if (detail.inventory_restored) {
+                    console.log(`[cancelOrder] Sản phẩm ${detail.id_product} size ${detail.size} đã được hoàn lại số lượng trước đó, bỏ qua.`);
+                    continue;
+                }
+                
+                // Lấy thông tin sản phẩm
+                const product = await Products.findOne({ _id: detail.id_product });
+                if (!product) {
+                    console.log(`[cancelOrder] Không tìm thấy sản phẩm ${detail.id_product}`);
+                    continue;
+                }
+                
+                const productInventory = product.inventory || { S: 0, M: 0, L: 0 };
+                const size = detail.size;
+                const count = parseInt(detail.count);
+                
+                // Hoàn lại số lượng cho size đó
+                if (size && productInventory[size] !== undefined) {
+                    console.log(`[cancelOrder] Trước khi hoàn lại: Sản phẩm ${product._id}, Size ${size}, Tồn kho ${productInventory[size]}`);
+                    
+                    // Cộng lại số lượng vào kho
+                    productInventory[size] += count;
+                    
+                    console.log(`[cancelOrder] Sau khi hoàn lại: Sản phẩm ${product._id}, Size ${size}, Tồn kho ${productInventory[size]}`);
+                    console.log(`[cancelOrder] Đã hoàn lại ${count} sản phẩm size ${size} cho sản phẩm ${detail.id_product}`);
+                    
+                    // Cập nhật lại inventory của sản phẩm
+                    await Products.updateOne(
+                        { _id: detail.id_product },
+                        { inventory: productInventory }
+                    );
+                    
+                    // Đánh dấu đã hoàn lại inventory cho chi tiết đơn hàng này
+                    await Detail_Order.updateOne(
+                        { _id: detail._id },
+                        { inventory_restored: true }
+                    );
+                }
+            }
+        } else {
+            console.log(`[cancelOrder] Đơn hàng ${req.query.id} đã hoàn thành (status=4), không hoàn lại số lượng.`);
+        }
         
         // Cập nhật trạng thái đơn hàng thành hủy
         await Order.updateOne({ _id: req.query.id }, { status: "5" });
+        console.log(`[cancelOrder] Đã cập nhật trạng thái đơn hàng ${req.query.id} thành 'Đã hủy'`);
         
-        // Nếu đơn hàng có sử dụng mã giảm giá
-        if (order.id_coupon) {
+        // Xử lý hoàn lại mã giảm giá nếu có
+        if (order.id_coupon && !order.coupon_restored) {
             try {
                 // Hoàn lại mã giảm giá trực tiếp
                 const Coupon = require('../../../Models/coupon');
@@ -188,13 +220,13 @@ module.exports.cancelOrder = async (req, res) => {
                 const coupon = await Coupon.findOne({ _id: order.id_coupon });
                 
                 if (coupon) {
-                    console.log(`Found coupon ${coupon.code} with count ${coupon.count}`);
+                    console.log(`[cancelOrder] Tìm thấy mã giảm giá ${coupon.code} với số lượng hiện tại ${coupon.count}`);
                     
                     // Tăng số lượng mã giảm giá lên 1
                     coupon.count = parseInt(coupon.count) + 1;
                     await coupon.save();
                     
-                    console.log(`Updated coupon count to ${coupon.count}`);
+                    console.log(`[cancelOrder] Đã cập nhật số lượng mã giảm giá thành ${coupon.count}`);
                     
                     // Đánh dấu đơn hàng đã được hoàn lại mã giảm giá và xóa liên kết
                     await Order.updateOne(
@@ -205,19 +237,19 @@ module.exports.cancelOrder = async (req, res) => {
                         }
                     );
                     
-                    console.log(`Restored coupon ${order.id_coupon} for order ${order._id}`);
+                    console.log(`[cancelOrder] Đã hoàn lại mã giảm giá ${order.id_coupon} cho đơn hàng ${order._id}`);
                 } else {
-                    console.log(`Coupon ${order.id_coupon} not found`);
+                    console.log(`[cancelOrder] Không tìm thấy mã giảm giá ${order.id_coupon}`);
                 }
             } catch (couponError) {
-                console.error("Error restoring coupon:", couponError);
+                console.error("[cancelOrder] Lỗi khi hoàn lại mã giảm giá:", couponError);
                 // Vẫn tiếp tục xử lý, không trả về lỗi
             }
         }
         
         res.json({ msg: "Thanh Cong" });
     } catch (error) {
-        console.error("Error canceling order:", error);
+        console.error("[cancelOrder] Lỗi khi hủy đơn hàng:", error);
         res.status(500).json({ msg: "Đã xảy ra lỗi khi hủy đơn hàng" });
     }
 }
