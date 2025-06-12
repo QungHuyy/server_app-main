@@ -112,6 +112,9 @@ io.on("connection", (socket) => {
     socket.broadcast.emit("receive_order", data);
   })
 })
+app.get("/ping", (req, res) => {
+  res.send("pong");
+});
 
 http.listen(port, () => {
   console.log('listening on *: ' + port);
